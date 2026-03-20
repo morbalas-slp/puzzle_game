@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>מצא את החיה</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Varela+Round&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Varela Round', sans-serif;
+  background: #e8f4f8;
+  min-height: 100vh;
+  direction: rtl;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 20%, #FFD93D22 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, #4ECDC422 0%, transparent 40%);
+  pointer-events: none;
+}
+header { text-align: center; padding: 20px 16px 6px; }
+h1 { font-family:'Fredoka One',cursive; font-size: clamp(1.8rem,5vw,2.8rem); color:#3a3a3a; letter-spacing:2px; }
+h1 span { color:#FF6B6B; }
+.tagline { font-size:0.95rem; color:#999; margin-top:4px; }
+
+.word-bar { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; padding:14px; }
+.word-btn {
+  background:white; border:3px solid #EEE; border-radius:50px;
+  padding:8px 18px; font-family:'Fredoka One',cursive; font-size:1.05rem;
+  cursor:pointer; transition:all 0.2s; box-shadow:0 4px 0 #DDD;
+  color:#555; display:flex; align-items:center; gap:8px;
+}
+.word-btn .icon { font-size:1.3rem; }
+.word-btn:hover { transform:translateY(-2px); box-shadow:0 6px 0 #DDD; }
+.word-btn.active { border-color:#FF6B6B; box-shadow:0 4px 0 #FF4444; color:#FF6B6B; background:#FFF5F5; }
+
+.game-wrap {
+  display:flex; gap:24px; justify-content:center; align-items:flex-start;
+  flex-direction:row; flex-wrap:wrap; padding:8px 16px 32px; max-width:1000px; margin:0 auto;
+}
+
+.board-card, .pieces-card {
+  background:white; border-radius:24px; padding:18px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.1); flex:0 0 auto;
+}
+.card-label {
+  font-family:'Fredoka One',cursive; font-size:1rem; color:#BBB;
+  text-align:center; margin-bottom:12px;
+}
+
+.board { border-radius:14px; overflow:visible; border:3px solid #EEE; background:#f5f5f5; position:relative; display:flex; flex-direction:row-reverse; }
+.slot {
+  position:relative; border-right:2px dashed #DDD;
+  display:flex; align-items:center; justify-content:center;
+  transition: background 0.15s; flex-shrink:0;
+}
+.slot:last-child { border-right:none; }
+.slot.highlight { background:#E0FAF7 !important; outline:3px solid #4ECDC4; outline-offset:-3px; }
+.slot-placeholder { font-size:1.8rem; opacity:0.12; pointer-events:none; }
+.slot canvas { position:absolute; top:0; left:0; pointer-events:none; display:block; }
+
+.pieces-pool { display:flex; flex-direction:row; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; max-width:400px; }
+.piece {
+  border-radius:12px; cursor:grab; overflow:hidden; position:relative;
+  box-shadow:0 5px 0 rgba(0,0,0,0.13), 0 8px 18px rgba(0,0,0,0.09);
+  transition:transform 0.18s, box-shadow 0.18s, opacity 0.2s;
+  user-select:none; border:3px solid rgba(255,255,255,0.9); flex-shrink:0;
+}
+.piece:hover { transform:translateY(-4px) rotate(-2deg); box-shadow:0 10px 0 rgba(0,0,0,0.1), 0 16px 30px rgba(0,0,0,0.12); }
+.piece:active { cursor:grabbing; }
+.piece.placed-out { opacity:0.25; pointer-events:none; transform:scale(0.93); }
+.piece canvas { display:block; }
+
+.drag-ghost {
+  position:fixed; pointer-events:none; z-index:9999;
+  border-radius:12px; overflow:hidden;
+  box-shadow:0 16px 48px rgba(0,0,0,0.28);
+  transform:translate(-50%,-50%) rotate(4deg) scale(1.07);
+  border:3px solid white;
+}
+
+.syllable-spans { text-align:center; padding:8px 0 4px; }
+.syllable-spans span {
+  display:inline-block; padding:3px 8px; border-radius:10px; margin:0 3px;
+  font-size:1.3rem; font-family:'Fredoka One',cursive;
+}
+
+.audio-section { margin-top:12px; background:#FFFBEE; border:2px dashed #FFD93D; border-radius:12px; padding:10px; }
+.audio-section h4 { font-size:0.8rem; color:#BBB; text-align:center; margin-bottom:8px; }
+.audio-slots { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+.audio-slot { display:flex; flex-direction:column; align-items:center; gap:3px; }
+.audio-slot label { font-size:0.75rem; color:#999; }
+.upload-btn {
+  padding:5px 11px; border-radius:8px; border:2px solid #FFD93D;
+  background:white; cursor:pointer; font-family:'Varela Round',sans-serif;
+  font-size:0.8rem; color:#888; transition:all 0.2s;
+}
+.upload-btn.done { border-color:#5DD07C; color:#3a8a50; background:#EDFAEF; }
+
+.win-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55);
+  z-index:9990; align-items:center; justify-content:center;
+}
+.win-overlay.show { display:flex; }
+.win-card {
+  background:white; border-radius:28px; padding:36px 44px; text-align:center;
+  animation:pop-win 0.5s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow:0 24px 60px rgba(0,0,0,0.3);
+}
+@keyframes pop-win { from{transform:scale(0.3) rotate(-8deg);opacity:0} to{transform:scale(1);opacity:1} }
+.win-stars { font-size:2rem; letter-spacing:4px; margin-bottom:10px; }
+.win-big { font-family:'Fredoka One',cursive; font-size:2rem; color:#FF6B6B; }
+.win-emoji { font-size:5rem; margin:8px 0; }
+.win-word { font-family:'Fredoka One',cursive; font-size:2.2rem; color:#3a3a3a; margin-bottom:18px; }
+.win-buttons { display:flex; flex-direction:column; gap:12px; align-items:center; }
+.read-btn {
+  background:linear-gradient(135deg,#FF6B6B,#FF8E53);
+  color:white; border:none; border-radius:50px; padding:13px 30px;
+  font-family:'Fredoka One',cursive; font-size:1.2rem; cursor:pointer;
+  box-shadow:0 6px 0 #cc3a2a; transition:all 0.2s;
+  display:flex; align-items:center; gap:8px;
+}
+.read-btn:hover { transform:translateY(-2px); }
+.read-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+.next-btn {
+  background:linear-gradient(135deg,#4ECDC4,#44A08D);
+  color:white; border:none; border-radius:50px; padding:13px 30px;
+  font-family:'Fredoka One',cursive; font-size:1.2rem; cursor:pointer;
+  box-shadow:0 6px 0 #2a7a72; transition:all 0.2s;
+}
+.next-btn:hover { transform:translateY(-2px); }
+
+/* Syllable reading highlight on the board slots */
+.slot.reading-active {
+  z-index:10;
+  box-shadow:0 0 0 4px #FF6B6B, 0 0 24px 6px rgba(255,107,107,0.55);
+  transform:scale(1.08);
+  transition:transform 0.18s, box-shadow 0.18s;
+}
+/* current syllable badge shown during reading */
+.reading-badge {
+  position:fixed; z-index:9998;
+  font-family:'Fredoka One',cursive; font-size:3rem;
+  background:white; border-radius:20px; padding:10px 28px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.25);
+  color:#FF6B6B; pointer-events:none;
+  animation:badge-pop 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes badge-pop { from{transform:translate(-50%,-50%) scale(0.4)} to{transform:translate(-50%,-50%) scale(1)} }
+
+.confetti-bit { position:fixed; border-radius:3px; animation:fall linear forwards; pointer-events:none; z-index:10000; }
+@keyframes fall { from{transform:translateY(-30px) rotate(0deg);opacity:1} to{transform:translateY(110vh) rotate(600deg);opacity:0} }
+@keyframes slot-snap { from{transform:scaleX(0.6)} to{transform:scaleX(1)} }
+@keyframes wrong-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+</style>
+</head>
+<body>
+<div id="audioEnabler" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(232,244,248,0.95); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
+    <h2 style="margin-bottom:20px;">מוכנים לשחק?</h2>
+    <button onclick="enableAudioAndStart()" style="padding:20px 40px; font-size:24px; border-radius:50px; border:none; background:#FFD93D; cursor:pointer; font-weight:bold; box-shadow:0 5px 15px rgba(0,0,0,0.1);">לחצו כאן להתחלה 🔊</button>
+</div>
+<header>
+  <h1>🐾 מצא את <span>החיה</span></h1>
+  <p class="tagline">הרכב את התמונה מהחלקים!</p>
+</header>
+<div class="word-bar" id="wordBar"></div>
+<div class="game-wrap">
+  <div class="board-card">
+    <div class="card-label">📌 הרכב כאן</div>
+    <div class="board" id="board"></div>
+    <div id="syllableRow"></div>
+  </div>
+  <div class="pieces-card">
+    <div class="card-label">✋ גרור חלק למקומו!</div>
+    <div class="pieces-pool" id="piecesPool"></div>
+      </div>
+  </div>
+</div>
+<div class="win-overlay" id="winOverlay">
+  <div class="win-card">
+    <div class="win-stars">⭐⭐⭐</div>
+    <div class="win-big">כל הכבוד! 🎉</div>
+    <div class="win-emoji" id="winEmoji"></div>
+    <div class="win-word" id="winWord"></div>
+    <div class="win-buttons">
+      <button class="next-btn" onclick="nextWord()">מילה הבאה ➡️</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── helpers ──────────────────────────────────
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+function tri(ctx,x1,y1,x2,y2,x3,y3){
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(x3,y3);ctx.closePath();
+}
+
+// ── draw functions (all draw into 240×240) ───
+function drawDog(ctx){
+  ctx.fillStyle='#87CEEB';ctx.fillRect(0,0,240,240);
+  ctx.fillStyle='#A8E063';ctx.beginPath();ctx.ellipse(120,222,90,18,0,0,Math.PI*2);ctx.fill();
+  // tail
+  ctx.strokeStyle='#C68642';ctx.lineWidth=11;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(62,152);ctx.quadraticCurveTo(28,112,48,87);ctx.quadraticCurveTo(58,76,64,90);ctx.stroke();
+  // back legs
+  ctx.fillStyle='#b05a20';roundRect(ctx,138,183,19,38,9);ctx.fill();roundRect(ctx,158,180,17,35,8);ctx.fill();
+  // body
+  ctx.fillStyle='#C68642';ctx.beginPath();ctx.ellipse(115,165,55,40,0,0,Math.PI*2);ctx.fill();
+  // front legs
+  roundRect(ctx,87,187,19,38,9);ctx.fill();roundRect(ctx,113,187,19,38,9);ctx.fill();
+  // spots
+  ctx.fillStyle='rgba(140,70,20,0.35)';
+  ctx.beginPath();ctx.ellipse(103,157,13,10,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(143,172,10,7,0,0,Math.PI*2);ctx.fill();
+  // head
+  ctx.fillStyle='#C68642';ctx.beginPath();ctx.arc(152,112,36,0,Math.PI*2);ctx.fill();
+  // ears
+  ctx.fillStyle='#a05a20';
+  ctx.save();ctx.translate(130,96);ctx.rotate(-0.27);ctx.beginPath();ctx.ellipse(0,0,14,21,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(174,90);ctx.rotate(0.18);ctx.beginPath();ctx.ellipse(0,0,10,17,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  // snout
+  ctx.fillStyle='#D4956A';ctx.beginPath();ctx.ellipse(166,126,16,12,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#3a1a00';ctx.beginPath();ctx.ellipse(166,120,7,5,0,0,Math.PI*2);ctx.fill();
+  // eye
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(157,108,6,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(158,108,3.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(159,107,1,0,Math.PI*2);ctx.fill();
+  // mouth+tongue
+  ctx.strokeStyle='#3a1a00';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(158,131);ctx.quadraticCurveTo(166,139,174,131);ctx.stroke();
+  ctx.fillStyle='#FF6B6B';ctx.beginPath();ctx.ellipse(166,137,7,9,0,0,Math.PI*2);ctx.fill();
+}
+
+function drawCat(ctx){
+  ctx.fillStyle='#C8EEFF';ctx.fillRect(0,0,240,240);
+  ctx.fillStyle='#A8E063';ctx.beginPath();ctx.ellipse(120,223,88,17,0,0,Math.PI*2);ctx.fill();
+  // tail
+  ctx.strokeStyle='#F5A623';ctx.lineWidth=13;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(65,182);ctx.quadraticCurveTo(28,157,43,127);ctx.quadraticCurveTo(53,112,60,127);ctx.stroke();
+  ctx.strokeStyle='#C67C00';ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(53,150);ctx.quadraticCurveTo(46,141,50,134);ctx.stroke();
+  // body
+  ctx.fillStyle='#F5A623';ctx.beginPath();ctx.ellipse(112,168,50,44,0,0,Math.PI*2);ctx.fill();
+  // body stripes
+  ctx.strokeStyle='#C67C00';ctx.lineWidth=3.5;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(92,150);ctx.quadraticCurveTo(112,157,132,150);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(85,167);ctx.quadraticCurveTo(112,174,139,167);ctx.stroke();
+  // legs
+  ctx.fillStyle='#F5A623';
+  roundRect(ctx,83,193,20,35,10);ctx.fill();roundRect(ctx,109,193,20,35,10);ctx.fill();roundRect(ctx,135,191,20,35,10);ctx.fill();
+  // head
+  ctx.beginPath();ctx.arc(146,111,38,0,Math.PI*2);ctx.fill();
+  // ears
+  tri(ctx,120,80,108,53,136,73);ctx.fill();tri(ctx,168,78,180,50,158,72);ctx.fill();
+  ctx.fillStyle='#FF9999';tri(ctx,118,78,111,62,130,72);ctx.fill();tri(ctx,166,76,177,57,160,70);ctx.fill();
+  // snout
+  ctx.fillStyle='#FDDCB0';ctx.beginPath();ctx.ellipse(146,120,20,14,0,0,Math.PI*2);ctx.fill();
+  // eyes
+  ctx.fillStyle='#7EC850';
+  ctx.beginPath();ctx.ellipse(134,107,9,10,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.ellipse(134,107,4,8,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(132,105,2,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#7EC850';ctx.beginPath();ctx.ellipse(159,107,9,10,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.ellipse(159,107,4,8,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(157,105,2,0,Math.PI*2);ctx.fill();
+  // nose
+  ctx.fillStyle='#FF6B99';tri(ctx,146,116,141,123,151,123);ctx.fill();
+  // whiskers
+  ctx.strokeStyle='rgba(100,100,100,0.55)';ctx.lineWidth=1.5;
+  [[126,120,88,115],[126,124,88,124],[126,128,88,133],[166,120,204,115],[166,124,204,124],[166,128,204,133]].forEach(([x1,y1,x2,y2])=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();});
+}
+
+
+function drawButterfly(ctx){
+  ctx.fillStyle='#FFF9C4';ctx.fillRect(0,0,240,240);
+  // top wings
+  ctx.fillStyle='#FF6B6B';
+  ctx.save();ctx.translate(155,95);ctx.rotate(-0.26);ctx.beginPath();ctx.ellipse(0,0,55,40,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(85,95);ctx.rotate(0.26);ctx.beginPath();ctx.ellipse(0,0,55,40,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.fillStyle='#FF8E53';ctx.globalAlpha=0.65;
+  ctx.save();ctx.translate(148,92);ctx.rotate(-0.26);ctx.beginPath();ctx.ellipse(0,0,38,28,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(92,92);ctx.rotate(0.26);ctx.beginPath();ctx.ellipse(0,0,38,28,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.globalAlpha=1;
+  // bottom wings
+  ctx.fillStyle='#FFD93D';
+  ctx.save();ctx.translate(158,162);ctx.rotate(0.17);ctx.beginPath();ctx.ellipse(0,0,42,32,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(82,162);ctx.rotate(-0.17);ctx.beginPath();ctx.ellipse(0,0,42,32,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.fillStyle='#FFF176';ctx.globalAlpha=0.65;
+  ctx.save();ctx.translate(152,160);ctx.rotate(0.17);ctx.beginPath();ctx.ellipse(0,0,28,22,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(88,160);ctx.rotate(-0.17);ctx.beginPath();ctx.ellipse(0,0,28,22,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.globalAlpha=1;
+  // spots
+  ctx.fillStyle='rgba(58,26,0,0.35)';
+  [152,88].forEach(x=>{ctx.beginPath();ctx.arc(x,88,8,0,Math.PI*2);ctx.fill();});
+  [160,80].forEach(x=>{ctx.beginPath();ctx.arc(x,158,7,0,Math.PI*2);ctx.fill();});
+  // body
+  ctx.fillStyle='#5D4037';ctx.beginPath();ctx.ellipse(120,128,9,52,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(120,74,12,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';
+  ctx.beginPath();ctx.arc(115,70,3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(125,70,3,0,Math.PI*2);ctx.fill();
+  // antennae
+  ctx.strokeStyle='#5D4037';ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(114,65);ctx.quadraticCurveTo(98,42,92,30);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(126,65);ctx.quadraticCurveTo(142,42,148,30);ctx.stroke();
+  ctx.fillStyle='#FF6B6B';
+  ctx.beginPath();ctx.arc(92,30,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(148,30,5,0,Math.PI*2);ctx.fill();
+}
+
+function drawFish(ctx){
+  ctx.fillStyle='#B3E5FC';ctx.fillRect(0,0,240,240);
+  // bubbles
+  ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=2;
+  [[185,55,10],[200,35,6],[175,30,4]].forEach(([x,y,r])=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();});
+  // seaweed
+  ctx.strokeStyle='#66BB6A';ctx.lineWidth=7;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(35,240);ctx.quadraticCurveTo(22,208,37,183);ctx.quadraticCurveTo(50,158,35,133);ctx.quadraticCurveTo(22,110,37,88);ctx.stroke();
+  ctx.strokeStyle='#81C784';ctx.lineWidth=6;
+  ctx.beginPath();ctx.moveTo(55,240);ctx.quadraticCurveTo(66,213,50,193);ctx.quadraticCurveTo(37,173,53,153);ctx.stroke();
+  // tail
+  ctx.fillStyle='#1565C0';tri(ctx,50,128,22,100,22,158);ctx.fill();
+  // body
+  ctx.fillStyle='#1E88E5';ctx.beginPath();ctx.ellipse(130,128,80,45,0,0,Math.PI*2);ctx.fill();
+  // belly
+  ctx.fillStyle='#42A5F5';ctx.globalAlpha=0.55;ctx.beginPath();ctx.ellipse(130,140,60,25,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+  // fins
+  ctx.fillStyle='#0D47A1';tri(ctx,100,83,130,55,160,83);ctx.fill();tri(ctx,105,170,125,196,148,170);ctx.fill();
+  // scales
+  ctx.strokeStyle='#0D47A1';ctx.lineWidth=2;ctx.globalAlpha=0.45;
+  [[80,115,110,115],[105,110,135,110],[80,130,110,130],[105,125,135,125]].forEach(([x1,y1,x2,y2])=>{
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.quadraticCurveTo((x1+x2)/2,y1-10,x2,y2);ctx.stroke();
+  });ctx.globalAlpha=1;
+  // eye
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(185,118,14,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(187,118,8,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(185,115,3,0,Math.PI*2);ctx.fill();
+  // mouth
+  ctx.strokeStyle='#0D47A1';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(205,125);ctx.quadraticCurveTo(215,132,205,138);ctx.stroke();
+}
+
+function drawPig(ctx){
+  // background
+  ctx.fillStyle='#FFF9C4';ctx.fillRect(0,0,240,240);
+  ctx.fillStyle='#A8E063';ctx.beginPath();ctx.ellipse(120,225,100,20,0,0,Math.PI*2);ctx.fill();
+  // tail (curly)
+  ctx.strokeStyle='#F48FB1';ctx.lineWidth=5;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(58,152);ctx.bezierCurveTo(30,140,18,120,32,108);ctx.bezierCurveTo(44,96,58,108,52,120);ctx.stroke();
+  // body
+  ctx.fillStyle='#FFAEC0';
+  ctx.beginPath();ctx.ellipse(125,168,65,50,0,0,Math.PI*2);ctx.fill();
+  // belly
+  ctx.fillStyle='#FFD6E0';
+  ctx.beginPath();ctx.ellipse(125,175,40,30,0,0,Math.PI*2);ctx.fill();
+  // legs
+  ctx.fillStyle='#FFAEC0';
+  roundRect(ctx,82,196,22,40,11);ctx.fill();
+  roundRect(ctx,110,196,22,40,11);ctx.fill();
+  roundRect(ctx,138,194,22,40,11);ctx.fill();
+  roundRect(ctx,164,192,20,38,10);ctx.fill();
+  // hooves
+  ctx.fillStyle='#E57373';
+  [82,110,138,164].forEach(x=>{ roundRect(ctx,x,228,22,10,5);ctx.fill(); });
+  // head
+  ctx.fillStyle='#FFAEC0';
+  ctx.beginPath();ctx.arc(158,108,45,0,Math.PI*2);ctx.fill();
+  // ears
+  ctx.fillStyle='#FFAEC0';
+  tri(ctx,128,72,112,42,140,65);ctx.fill();
+  tri(ctx,188,70,200,42,178,65);ctx.fill();
+  ctx.fillStyle='#F48FB1';
+  tri(ctx,128,71,117,50,136,66);ctx.fill();
+  tri(ctx,187,69,197,50,180,66);ctx.fill();
+  // snout
+  ctx.fillStyle='#F48FB1';
+  ctx.beginPath();ctx.ellipse(165,118,24,18,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#C2185B';
+  ctx.beginPath();ctx.ellipse(158,118,6,5,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(172,118,6,5,0,0,Math.PI*2);ctx.fill();
+  // eyes
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(145,98,9,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(146,98,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(144,97,2,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(170,98,9,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(171,98,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(169,97,2,0,Math.PI*2);ctx.fill();
+  // smile
+  ctx.strokeStyle='#C2185B';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(148,128);ctx.quadraticCurveTo(158,136,168,128);ctx.stroke();
+}
+
+function drawShark(ctx){
+  // ocean bg
+  ctx.fillStyle='#0277BD';ctx.fillRect(0,0,240,240);
+  // water surface shimmer
+  ctx.fillStyle='#0288D1';ctx.fillRect(0,0,240,60);
+  ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=3;
+  [[0,30,240,30],[0,45,240,45],[0,15,240,15]].forEach(([x1,y1,x2,y2])=>{
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  });
+  // bubbles
+  ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1.5;
+  [[30,80,6],[20,55,4],[40,40,3],[210,70,5],[220,45,3]].forEach(([x,y,r])=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();});
+  // tail fin
+  ctx.fillStyle='#78909C';
+  tri(ctx,38,128,8,95,8,162);ctx.fill();
+  // body
+  ctx.fillStyle='#90A4AE';
+  ctx.beginPath();ctx.ellipse(128,128,95,50,0,0,Math.PI*2);ctx.fill();
+  // belly
+  ctx.fillStyle='#ECEFF1';
+  ctx.beginPath();ctx.ellipse(128,142,65,28,0,0,Math.PI*2);ctx.fill();
+  // dorsal fin (top)
+  ctx.fillStyle='#78909C';
+  tri(ctx,110,78,130,28,155,78);ctx.fill();
+  // pectoral fin
+  tri(ctx,100,148,65,185,130,155);ctx.fill();
+  // gills
+  ctx.strokeStyle='#546E7A';ctx.lineWidth=3;ctx.lineCap='round';
+  [[88,105,85,145],[98,102,95,142]].forEach(([x1,y1,x2,y2])=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();});
+  // mouth
+  ctx.fillStyle='#ECEFF1';
+  ctx.beginPath();ctx.moveTo(195,128);ctx.quadraticCurveTo(220,118,228,128);ctx.quadraticCurveTo(220,145,195,140);ctx.closePath();ctx.fill();
+  // teeth
+  ctx.fillStyle='white';ctx.strokeStyle='#BBB';ctx.lineWidth=1;
+  [198,206,214,222].forEach(x=>{tri(ctx,x,128,x+4,138,x+8,128);ctx.fill();ctx.stroke();});
+  [198,206,214,222].forEach(x=>{tri(ctx,x,140,x+4,130,x+8,140);ctx.fill();ctx.stroke();});
+  // eye
+  ctx.fillStyle='black';ctx.beginPath();ctx.arc(183,112,11,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(180,109,4,0,Math.PI*2);ctx.fill();
+  // eye ring
+  ctx.strokeStyle='#546E7A';ctx.lineWidth=3;ctx.beginPath();ctx.arc(183,112,14,0,Math.PI*2);ctx.stroke();
+}
+
+function drawBird(ctx){
+  // sky
+  ctx.fillStyle='#87CEEB';ctx.fillRect(0,0,240,240);
+  // sun
+  ctx.fillStyle='#FFD93D';ctx.beginPath();ctx.arc(210,30,22,0,Math.PI*2);ctx.fill();
+  // branch
+  ctx.fillStyle='#795548';
+  roundRect(ctx,20,185,200,16,8);ctx.fill();
+  roundRect(ctx,90,185,16,50,6);ctx.fill();
+  // tail feathers
+  ctx.fillStyle='#1565C0';
+  tri(ctx,55,160,20,185,45,185);ctx.fill();
+  tri(ctx,65,158,35,188,60,185);ctx.fill();
+  ctx.fillStyle='#1976D2';
+  tri(ctx,72,157,48,188,72,185);ctx.fill();
+  // body
+  ctx.fillStyle='#1E88E5';
+  ctx.beginPath();ctx.ellipse(118,162,55,38,0,0,Math.PI*2);ctx.fill();
+  // wing
+  ctx.fillStyle='#1565C0';
+  ctx.beginPath();ctx.ellipse(108,158,38,22,-0.3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#42A5F5';
+  ctx.beginPath();ctx.ellipse(108,155,25,14,-0.3,0,Math.PI*2);ctx.fill();
+  // belly
+  ctx.fillStyle='#FFEB3B';
+  ctx.beginPath();ctx.ellipse(130,170,28,22,0,0,Math.PI*2);ctx.fill();
+  // feet
+  ctx.strokeStyle='#FF8F00';ctx.lineWidth=4;ctx.lineCap='round';
+  [[100,196],[118,196],[136,196]].forEach(([x,y])=>{
+    ctx.beginPath();ctx.moveTo(x,185);ctx.lineTo(x-8,y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,185);ctx.lineTo(x,y+2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,185);ctx.lineTo(x+8,y);ctx.stroke();
+  });
+  // neck
+  ctx.fillStyle='#1E88E5';
+  ctx.beginPath();ctx.ellipse(152,128,22,28,0.1,0,Math.PI*2);ctx.fill();
+  // head
+  ctx.beginPath();ctx.arc(158,96,30,0,Math.PI*2);ctx.fill();
+  // crest feathers
+  ctx.fillStyle='#0D47A1';
+  [[-8,-26,-5,-44],[0,-28,4,-46],[8,-26,12,-43]].forEach(([dx1,dy1,dx2,dy2])=>{
+    ctx.beginPath();ctx.moveTo(158+dx1,96+dy1);ctx.lineTo(158+dx2,96+dy2);ctx.stroke();
+    ctx.fillStyle='#0D47A1';ctx.beginPath();ctx.arc(158+dx2,96+dy2,4,0,Math.PI*2);ctx.fill();
+  });
+  // eye
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(168,90,9,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(169,90,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(167,88,2,0,Math.PI*2);ctx.fill();
+  // beak
+  ctx.fillStyle='#FF8F00';
+  tri(ctx,183,96,205,90,183,104);ctx.fill();
+  ctx.strokeStyle='#E65100';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(183,100);ctx.lineTo(205,90);ctx.stroke();
+}
+
+function drawDuck(ctx){
+  // pond bg
+  ctx.fillStyle='#B3E5FC';ctx.fillRect(0,0,240,240);
+  ctx.fillStyle='#81D4FA';ctx.fillRect(0,150,240,90);
+  // water ripples
+  ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=2;
+  [[80,185,40,8],[150,195,35,7],[110,210,50,9]].forEach(([x,y,rx,ry])=>{
+    ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.stroke();
+  });
+  // reeds
+  ctx.strokeStyle='#558B2F';ctx.lineWidth=5;ctx.lineCap='round';
+  [[30,240,30,130],[38,240,36,140],[195,240,195,120],[202,240,200,135]].forEach(([x1,y1,x2,y2])=>{
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  });
+  ctx.fillStyle='#33691E';
+  [[30,130],[38,140],[195,120],[202,135]].forEach(([x,y])=>{ctx.beginPath();ctx.ellipse(x,y,6,16,0.2,0,Math.PI*2);ctx.fill();});
+  // tail feathers
+  ctx.fillStyle='#388E3C';
+  tri(ctx,45,148,18,130,30,158);ctx.fill();
+  tri(ctx,50,152,22,165,40,162);ctx.fill();
+  ctx.fillStyle='#2E7D32';
+  tri(ctx,50,148,15,148,28,158);ctx.fill();
+  // body
+  ctx.fillStyle='#F5F5F5';
+  ctx.beginPath();ctx.ellipse(120,158,70,42,0,0,Math.PI*2);ctx.fill();
+  // wing detail
+  ctx.fillStyle='#E0E0E0';
+  ctx.beginPath();ctx.ellipse(108,152,48,26,-0.2,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#BDBDBD';ctx.lineWidth=1.5;
+  [[-15,0],[-5,-5],[5,-8],[15,-6]].forEach(([dx,dy])=>{
+    ctx.beginPath();ctx.moveTo(108+dx,152+dy);ctx.lineTo(108+dx+8,152+dy+18);ctx.stroke();
+  });
+  // neck
+  ctx.fillStyle='#1B5E20';
+  ctx.beginPath();ctx.ellipse(158,128,20,32,0.1,0,Math.PI*2);ctx.fill();
+  // white neck ring
+  ctx.strokeStyle='white';ctx.lineWidth=5;
+  ctx.beginPath();ctx.ellipse(158,140,21,10,0.1,0,Math.PI*2);ctx.stroke();
+  // head (green like mallard)
+  ctx.fillStyle='#1B5E20';
+  ctx.beginPath();ctx.arc(163,96,32,0,Math.PI*2);ctx.fill();
+  // iridescent sheen
+  ctx.fillStyle='rgba(100,200,100,0.3)';
+  ctx.beginPath();ctx.ellipse(155,90,18,14,0.3,0,Math.PI*2);ctx.fill();
+  // eye
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(174,90,8,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(175,90,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(173,88,1.5,0,Math.PI*2);ctx.fill();
+  // beak (flat duck bill)
+  ctx.fillStyle='#FFB300';
+  ctx.beginPath();
+  ctx.moveTo(188,93);ctx.bezierCurveTo(215,88,218,96,215,100);
+  ctx.bezierCurveTo(218,104,215,108,188,105);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#E65100';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(188,99);ctx.lineTo(215,98);ctx.stroke();
+  // feet visible in water
+  ctx.fillStyle='rgba(255,160,0,0.7)';
+  ctx.beginPath();ctx.ellipse(100,188,18,8,0.3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(130,192,18,8,0.1,0,Math.PI*2);ctx.fill();
+}
+
+// ── word data ────────────────────────────────
+const WORDS = [
+  {name:'כלב',  id:'dog',       emoji:'🐶', syllables:['כ','ל','ב'],      color:'#FFB347', draw:drawDog},
+  {name:'חתול', id:'cat',       emoji:'🐱', syllables:['ח','תו','ל'],     color:'#4ECDC4', draw:drawCat},
+  {name:'ציפור',id:'bird',      emoji:'🐦', syllables:['צי','פו','ר'],    color:'#1E88E5', draw:drawBird},
+  {name:'חזיר', id:'pig',       emoji:'🐷', syllables:['ח','זי','ר'],     color:'#F48FB1', draw:drawPig},
+  {name:'כריש', id:'shark',     emoji:'🦈', syllables:['כ','רי','ש'],     color:'#78909C', draw:drawShark},
+  {name:'דג',   id:'fish',      emoji:'🐟', syllables:['ד','ג'],          color:'#1E88E5', draw:drawFish},
+  {name:'פרפר', id:'butterfly', emoji:'🦋', syllables:['פ','ר','פ','ר'],  color:'#B57BF7', draw:drawButterfly},
+  {name:'ברוז', id:'duck',      emoji:'🦆', syllables:['ב','ר','ו','ז'],   color:'#388E3C', draw:drawDuck}
+];
+
+const IMG_W=300, IMG_H=240, STRIP_W=60;
+let currentIdx=0, placedMap={}, audioMap={}, dragging=null, ghostEl=null;
+const imageCache={};
+
+// Render full 240×240 image synchronously — mirrored horizontally
+// so that col 0 (first syllable) sits on the LEFT of the raw image,
+// which maps to the RIGHT slot of the RTL board (flex-direction:row-reverse)
+// Draw the full animal image into a 300×240 canvas, mirrored horizontally
+// so that the head (drawn on the right in all draw functions) ends up on the LEFT of the canvas.
+// Since slot 0 is rightmost (row-reverse) and shows image col 0 (leftmost),
+// the mirrored head will appear in slot 0 = rightmost = first syllable. ✓
+function getImage(idx){
+  if(imageCache[idx]) return imageCache[idx];
+  const w=WORDS[idx];
+  // draw at 240×240 first
+  const tmp=document.createElement('canvas');
+  tmp.width=240; tmp.height=240;
+  w.draw(tmp.getContext('2d'));
+  // flip into 300×240
+  const oc=document.createElement('canvas');
+  oc.width=IMG_W; oc.height=IMG_H;
+  const ctx=oc.getContext('2d');
+  ctx.save();
+  ctx.translate(IMG_W, 0);
+  ctx.scale(-IMG_W/240, IMG_H/240);
+  ctx.drawImage(tmp, 0, 0, 240, 240);
+  ctx.restore();
+  imageCache[idx]=oc;
+  return oc;
+}
+
+// syllableIdx i → image column i (straight mapping, no mirroring)
+// slot 0 = rightmost (row-reverse) = syllable 0 = image col 0 (leftmost of drawing)
+function makeStrip(wordIdx, syllableIdx, outW, outH){
+  const src=getImage(wordIdx);
+  const n=WORDS[wordIdx].syllables.length;
+  const srcColW=IMG_W/n;
+  const c=document.createElement('canvas');
+  c.width=outW; c.height=outH;
+  c.getContext('2d').drawImage(src, syllableIdx*srcColW, 0, srcColW, IMG_H, 0, 0, outW, outH);
+  return c;
+}
+
+// ── init ─────────────────────────────────────
+function init(){
+  WORDS.forEach((_,i)=>getImage(i));
+  buildWordBar();
+  loadWord(0);
+}
+
+function buildWordBar(){
+  const bar=document.getElementById('wordBar');
+  bar.innerHTML='';
+  WORDS.forEach((w,i)=>{
+    const btn=document.createElement('button');
+    btn.className='word-btn'+(i===0?' active':'');
+    btn.innerHTML=`<span class="icon">${w.emoji}</span>${w.name}`;
+    btn.onclick=()=>loadWord(i);
+    bar.appendChild(btn);
+  });
+}
+
+function loadWord(idx){
+  currentIdx=idx; placedMap={};
+  document.querySelectorAll('.word-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  const w=WORDS[idx];
+  buildBoard(w,idx);
+  buildPieces(w,idx);
+  buildSyllableRow(w);
+  buildAudioSlots(w,idx);
+}
+
+function buildBoard(w,idx){
+  const board=document.getElementById('board');
+  board.innerHTML='';
+  const n=w.syllables.length;
+  const slotW=Math.floor(IMG_W/n);
+  board.style.cssText=`width:${IMG_W}px;height:${IMG_H}px;`;
+  // flex-direction:row-reverse means: first child appended = rightmost visually
+  // So append slot 0 first → slot 0 appears on the RIGHT (first syllable = right = Hebrew RTL)
+  for(let i=0;i<n;i++){
+    const slot=document.createElement('div');
+    slot.className='slot';
+    slot.dataset.slot=i;
+    slot.style.cssText=`width:${slotW}px;height:${IMG_H}px;`;
+    slot.innerHTML=`<span class="slot-placeholder">${w.emoji}</span>`;
+    slot.addEventListener('dragover',e=>{e.preventDefault();slot.classList.add('highlight');});
+    slot.addEventListener('dragleave',()=>slot.classList.remove('highlight'));
+    slot.addEventListener('drop',e=>{e.preventDefault();slot.classList.remove('highlight');handleDrop(i);});
+    slot.addEventListener('touchend',e=>{
+      e.preventDefault();
+      const t=e.changedTouches[0];
+      const el=document.elementFromPoint(t.clientX,t.clientY);
+      const s=el&&el.closest('.slot');
+      if(s) handleDrop(parseInt(s.dataset.slot));
+    },{passive:false});
+    board.appendChild(slot);
+  }
+}
+
+function buildPieces(w,idx){
+  const pool=document.getElementById('piecesPool');
+  pool.innerHTML='';
+  const n=w.syllables.length;
+  const order=[...Array(n).keys()].sort(()=>Math.random()-0.5);
+  const slotW=Math.floor(IMG_W/n);
+  order.forEach(col=>{
+    const piece=document.createElement('div');
+    piece.className='piece';
+    piece.dataset.row=col;
+    const pw=slotW-10, ph=IMG_H-10;
+    piece.style.cssText=`width:${pw}px;height:${ph}px;`;
+    piece.appendChild(makeStrip(idx,col,pw,ph));
+    piece.draggable=true;
+    piece.addEventListener('dragstart',()=>{dragging=col;setTimeout(()=>piece.style.opacity='0.35',0);});
+    piece.addEventListener('dragend',()=>{if(!piece.classList.contains('placed-out'))piece.style.opacity='1';});
+    piece.addEventListener('touchstart',e=>{dragging=col;createGhost(piece,e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+    piece.addEventListener('touchmove',e=>{moveGhost(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+    piece.addEventListener('touchend',e=>{
+      removeGhost();
+      const t=e.changedTouches[0];
+      const el=document.elementFromPoint(t.clientX,t.clientY);
+      const s=el&&el.closest('.slot');
+      if(s) handleDrop(parseInt(s.dataset.slot));
+    },{passive:true});
+    pool.appendChild(piece);
+  });
+}
+
+function buildSyllableRow(w){
+  const colors=['#FF6B6B','#4ECDC4','#B57BF7','#FFB347'];
+  const row=document.getElementById('syllableRow');
+  row.className='syllable-spans';
+  row.innerHTML=w.syllables.map((s,i)=>`<span style="background:${colors[i%colors.length]}20;color:${colors[i%colors.length]};border:2px solid ${colors[i%colors.length]}55">${s}</span>`).join('');
+}
+
+// ── game logic ───────────────────────────────
+// CONFIRMED: col=2 goes to slot=2 (rightmost). Match = col===slotIndex (direct).
+// Audio: slot 2 (right)=syllable 0="כ", slot 0 (left)=syllable 2="ב"
+//        syllableIndex = n-1-slotIndex
+function handleDrop(slotIndex){
+  if(dragging===null) return;
+  const col=dragging; dragging=null;
+  const w=WORDS[currentIdx];
+  const n=w.syllables.length;
+  const slot=document.querySelector(`.slot[data-slot="${slotIndex}"]`);
+  const sylI = n-1-slotIndex;   // slot n-1 (right) → syllable 0, slot 0 (left) → syllable n-1
+  playAudioForSlot(currentIdx, sylI);
+  if(col === slotIndex){
+    placedMap[slotIndex]=col;
+    const slotW=Math.floor(IMG_W/n);
+    slot.innerHTML='';
+    const c=makeStrip(currentIdx,col,slotW,IMG_H);
+    c.style.cssText='position:absolute;top:0;left:0;';
+    slot.appendChild(c);
+    slot.style.border=`2px solid ${w.color}`;
+    slot.style.animation='none'; slot.offsetHeight;
+    slot.style.animation='slot-snap 0.35s cubic-bezier(0.34,1.56,0.64,1)';
+    document.querySelectorAll('.piece').forEach(p=>{if(parseInt(p.dataset.row)===col)p.classList.add('placed-out');});
+    if(Object.keys(placedMap).length===n) setTimeout(()=>onPuzzleComplete(w),650);
+  } else {
+    slot.style.animation='none'; slot.offsetHeight;
+    slot.style.animation='wrong-shake 0.35s ease';
+    slot.style.background='#FFF0F0';
+    setTimeout(()=>{slot.style.background='';slot.style.animation='';},400);
+  }
+}
+
+// ── audio ─────────────────────────────────────
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function buildAudioSlots(w,wordIdx){
+  const container=document.getElementById('audioSlots');
+  container.innerHTML='';
+  w.syllables.forEach((syl,si)=>{
+    const wrap=document.createElement('div');wrap.className='audio-slot';
+    const lbl=document.createElement('label');lbl.textContent=`"${syl}"`;
+    const input=document.createElement('input');input.type='file';input.accept='audio/*';input.style.display='none';
+    const btn=document.createElement('button');
+    const key=`${wordIdx}_${si}`;
+    btn.className='upload-btn'+(audioMap[key]?' done':'');
+    btn.textContent=audioMap[key]?'✅':'🎵';
+    btn.onclick=()=>input.click();
+    input.onchange=()=>{
+      const f=input.files[0];if(!f)return;
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const ctx=getAudioCtx();
+        // Decode once and store the AudioBuffer — avoids detached ArrayBuffer issues
+        ctx.decodeAudioData(e.target.result, decoded=>{
+          audioMap[key]=decoded; // store as AudioBuffer
+          btn.className='upload-btn done';btn.textContent='✅';
+        }, err=>{ alert('שגיאה בקובץ השמע — נסי פורמט אחר (mp3/wav)'); console.error(err); });
+      };
+      reader.readAsArrayBuffer(f);
+    };
+    wrap.append(lbl,input,btn);container.appendChild(wrap);
+  });
+}
+
+function playAudioForSlot(wordIdx, syllableIndex, cb) {
+  const wordObj = WORDS[wordIdx];
+  if (!wordObj) return;
+
+  const githubBaseUrl = "https://morbalas-slp.github.io/puzzle/sounds/";
+  const audioUrl = githubBaseUrl + wordObj.id + "_" + syllableIndex + ".mp4";
+
+  console.log("מנסה להזרים סאונד:", audioUrl);
+
+  const audio = new Audio();
+  audio.src = audioUrl;
+  
+  // הגדרות קריטיות לניידים
+  audio.preload = "auto";
+  audio.crossOrigin = "anonymous";
+
+  // פתרון לאייפון: מבקש מהדפדפן להשמיע מיד כשזה מוכן
+  const playPromise = audio.play();
+
+  if (playPromise !== undefined) {
+    playPromise.then(() => {
+      // ההשמעה התחילה בהצלחה
+      audio.onended = () => { if (cb) cb(); };
+    }).catch(error => {
+      console.error("חסימת השמעה בנייד:", error);
+      // אם יש חסימה, ננסה "לרכוב" על האירוע של הלחיצה
+      if (cb) cb();
+    });
+  }
+
+  audio.onerror = () => {
+    console.warn("קובץ לא נמצא:", audioUrl);
+    if (cb) cb();
+  };
+}
+
+// ── ghost ─────────────────────────────────────
+function createGhost(el,x,y){
+  if(ghostEl)ghostEl.remove();
+  ghostEl=el.cloneNode(true);
+  ghostEl.className='piece drag-ghost';
+  ghostEl.style.cssText+=`left:${x}px;top:${y}px;width:${el.offsetWidth}px;height:${el.offsetHeight}px;`;
+  document.body.appendChild(ghostEl);
+}
+function moveGhost(x,y){if(ghostEl){ghostEl.style.left=x+'px';ghostEl.style.top=y+'px';}}
+function removeGhost(){if(ghostEl){ghostEl.remove();ghostEl=null;}}
+
+// ── win / confetti ────────────────────────────
+
+// Called when puzzle is complete: start reading automatically, then show win card
+function onPuzzleComplete(w){
+  spawnConfetti();
+  readSyllablesAuto(w, ()=>{
+    document.getElementById('winEmoji').textContent=w.emoji;
+    document.getElementById('winWord').textContent=w.name;
+    document.getElementById('winOverlay').classList.add('show');
+  });
+}
+
+function nextWord(){
+  document.getElementById('winOverlay').classList.remove('show');
+  loadWord((currentIdx+1)%WORDS.length);
+}
+
+function readSyllablesAuto(w, onDone){
+  const n=w.syllables.length;
+  // slot n-1 = rightmost = syllable 0. Read right→left: slot n-1, n-2, ... 0
+  let i=0;
+  function step(){
+    if(i>0){
+      const prev=document.querySelector(`.slot[data-slot="${n-i}"]`);
+      if(prev) prev.classList.remove('reading-active');
+      removeBadge();
+    }
+    if(i>=n){ setTimeout(onDone,600); return; }
+    const slotIdx=n-1-i;  // i=0→slot n-1 (right), i=1→slot n-2, ...
+    const slot=document.querySelector(`.slot[data-slot="${slotIdx}"]`);
+    if(slot){ slot.classList.add('reading-active'); showBadge(w.syllables[i], slot); }
+    playAudioThen(currentIdx, i, ()=>{ setTimeout(step,10); });
+    i++;
+  }
+  step();
+}
+
+// Keep readSyllables as a manual trigger too (for the button, now hidden but harmless)
+function readSyllables(){
+  readSyllablesAuto(WORDS[currentIdx], ()=>{});
+}
+
+function showBadge(text, slotEl){
+  removeBadge();
+  const rect=slotEl.getBoundingClientRect();
+  const badge=document.createElement('div');
+  badge.className='reading-badge';
+  badge.id='readingBadge';
+  badge.textContent=text;
+  badge.style.left=(rect.left+rect.width/2)+'px';
+  badge.style.top=(rect.top-30)+'px';
+  badge.style.transform='translate(-50%,-100%)';
+  badge.style.position='fixed';
+  document.body.appendChild(badge);
+}
+function removeBadge(){
+  const b=document.getElementById('readingBadge');
+  if(b) b.remove();
+}
+
+function playAudioThen(wordIdx, syllableIndex, cb){
+  playAudioForSlot(wordIdx, syllableIndex, cb);
+}
+function spawnConfetti(){
+  const cols=['#FF6B6B','#FFD93D','#4ECDC4','#B57BF7','#A8E063','#FFB347'];
+  for(let i=0;i<70;i++){
+    const c=document.createElement('div');c.className='confetti-bit';
+    c.style.cssText=`left:${Math.random()*100}vw;top:-20px;width:${7+Math.random()*9}px;height:${7+Math.random()*9}px;background:${cols[~~(Math.random()*cols.length)]};animation-duration:${1.4+Math.random()*1.2}s;animation-delay:${Math.random()}s;border-radius:${Math.random()>.5?'50%':'3px'};`;
+    document.body.appendChild(c);setTimeout(()=>c.remove(),3000);
+  }
+}
+
+function enableAudioAndStart() {
+  try {
+    // שחרור חסימת שמע בטלפון (השם המתוקן)
+    if ('speechSynthesis' in window) {
+      const msg = new SpeechSynthesisUtterance('');
+      speechSynthesis.speak(msg);
+    }
+    
+    // מעיר את מערכת השמע עבור הקלטות
+    if (typeof getAudioCtx === 'function') {
+      getAudioCtx().resume();
+    }
+
+    // העלמת מסך הפתיחה
+    const enabler = document.getElementById('audioEnabler');
+    if (enabler) {
+      enabler.style.display = 'none';
+    }
+    
+    // הפעלת המשחק
+    init(); 
+  } catch (e) {
+    console.error("Error starting game:", e);
+    // ליתר ביטחון, אם משהו נכשל - בכל זאת ננסה להפעיל את המשחק
+    document.getElementById('audioEnabler').style.display = 'none';
+    init();
+  }
+}
+
+// ביטלנו את הטעינה האוטומטית כדי שהטלפון לא יחסום את הסאונד
+// window.onload = initLevel;
+</script>
+
+</body>
+</html>
+
